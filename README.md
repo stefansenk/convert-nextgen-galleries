@@ -42,11 +42,15 @@ If you want to work the galleries on one specific post, you can use `&post=`.
 
 For example, to list all galleries on page 43 you can use:
 
-```/wp-admin/options-general.php?page=convert-nextgen-galleries.php&action=list&post=43```
+```
+/wp-admin/options-general.php?page=convert-nextgen-galleries.php&action=list&post=43
+```
 
 Then to convert those galleries you can use: 
 
-```/wp-admin/options-general.php?page=convert-nextgen-galleries.php&action=convert&post=43```
+```
+/wp-admin/options-general.php?page=convert-nextgen-galleries.php&action=convert&post=43
+```
 
 ### max_num
 
@@ -54,11 +58,15 @@ If you want work the galleries on the first 4 posts, you can use `&max_num=`.
 
 For example, to list all galleries on the first 4 pages you can use:
 
-```/wp-admin/options-general.php?page=convert-nextgen-galleries.php&action=list&max_num=4```
+```
+/wp-admin/options-general.php?page=convert-nextgen-galleries.php&action=list&max_num=4
+```
 
 Then to convert those galleries you can use: 
 
-```/wp-admin/options-general.php?page=convert-nextgen-galleries.php&action=convert&max_num=4```
+```
+/wp-admin/options-general.php?page=convert-nextgen-galleries.php&action=convert&max_num=4
+```
 
 
 ## Screenshot

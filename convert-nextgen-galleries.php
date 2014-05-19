@@ -51,8 +51,8 @@ function cng_get_gallery_id_from_shortcode($shortcode) {
 	return intval( $atts['id'] );
 }
 
-function cng_list_galleries($posts_query) {
-	echo '<h3>Listing ' . $posts_query->found_posts . ' posts with galleries to convert:</h3>';
+function cng_list_galleries($posts) {
+	echo '<h3>Listing ' . count($posts) . ' posts with galleries to convert:</h3>';
 
 	echo '<table>';
 	echo '<tr>';
@@ -61,7 +61,7 @@ function cng_list_galleries($posts_query) {
 	echo '<th>Galleries</th>';
 	echo '<th colspan="2">Actions</th>';
 	echo '<tr>';
-	foreach ( $posts_query->posts as $post ) {
+	foreach ( $posts as $post ) {
 		echo '<tr>';
 		echo '<td>' . $post->ID . '</td>';
 		echo '<td>' . $post->post_title . '</td>';
@@ -77,13 +77,13 @@ function cng_list_galleries($posts_query) {
 	echo '</table>';
 }
 
-function cng_convert_galleries($posts_query) {
+function cng_convert_galleries($posts) {
 	set_time_limit( 1000 );
 	
 	global $wpdb;
-	echo '<h3>Converting galleries in ' . $posts_query->found_posts . ' posts:</h3>';
+	echo '<h3>Converting galleries in ' . count($posts) . ' posts:</h3>';
 
-	foreach ( $posts_query->posts as $post ) {
+	foreach ( $posts as $post ) {
 		echo '<h4>' . $post->post_title . '</h4>';
 		foreach ( cng_find_gallery_shortcodes($post) as $shortcode ) {
 
@@ -162,15 +162,16 @@ add_action('admin_menu', function() {
 				$max_num_to_convert = isset($_GET['max_num']) ? $_GET['max_num'] : -1;
 
 				$posts_to_convert_query = cng_get_posts_to_convert_query( $post_id, $max_num_to_convert );
+				$posts_to_convert = $posts_to_convert_query->posts;
 
 				if ( isset( $_GET['action'] ) ) {
 					if ( $_GET['action'] == 'list' ) {
-						cng_list_galleries($posts_to_convert_query);
+						cng_list_galleries($posts_to_convert);
 					} elseif ( $_GET['action'] == 'convert' ) {
-						cng_convert_galleries($posts_to_convert_query);
+						cng_convert_galleries($posts_to_convert);
 					}
 				} else {
-					echo '<h3>' . $posts_to_convert_query->found_posts . ' posts with galleries to convert</h3>';
+					echo '<h3>' . count($posts_to_convert) . ' posts with galleries to convert</h3>';
 				}
 			?>
 			<p><a class="" href="<?php echo cng_admin_url() . '&amp;action=list' ?>">List galleries to convert</a></p>

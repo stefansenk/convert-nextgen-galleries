@@ -40,6 +40,14 @@ function cng_get_posts_to_convert_query($post_id = null, $max_number_of_posts = 
 	return new WP_Query( $args );
 }
 
+function cng_get_galleries_to_convert($gallery_id = null, $max_number_of_galleries = -1) {
+	global $wpdb;
+  if ($gallery_id)
+  	return $wpdb->get_results( $wpdb->prepare( "SELECT * FROM {$wpdb->prefix}ngg_gallery WHERE gid = %d", $gallery_id ) );
+  else
+  	return $wpdb->get_results( $wpdb->prepare( "SELECT * FROM {$wpdb->prefix}ngg_gallery" ) );
+}
+
 function cng_find_gallery_shortcodes($post) {
 	$matches = null;
 	preg_match_all( '/\[nggallery.*?\]/si', $post->post_content, $matches );
@@ -51,27 +59,21 @@ function cng_get_gallery_id_from_shortcode($shortcode) {
 	return intval( $atts['id'] );
 }
 
-function cng_list_galleries($posts) {
-	echo '<h3>Listing ' . count($posts) . ' posts with galleries to convert:</h3>';
+function cng_list_galleries($galleries) {
+	echo '<h3>Listing ' . count($galleries) . ' galleries to convert:</h3>';
 
 	echo '<table>';
 	echo '<tr>';
-	echo '<th>Post ID</th>';
-	echo '<th>Post Title</th>';
-	echo '<th>Galleries</th>';
+	echo '<th>Gallery ID</th>';
+	echo '<th>Gallery Title</th>';
 	echo '<th colspan="2">Actions</th>';
 	echo '<tr>';
-	foreach ( $posts as $post ) {
+	foreach ( $galleries as $gallery ) {
 		echo '<tr>';
-		echo '<td>' . $post->ID . '</td>';
-		echo '<td>' . $post->post_title . '</td>';
-		echo '<td>';
-		foreach ( cng_find_gallery_shortcodes($post) as $shortcode ) {
-			echo $shortcode . '<br>';
-		}
-		echo '</td>';
-		echo '<td><a href="' . admin_url('post.php?action=edit&amp;post=' . $post->ID) . '">Edit Post</a></td>';
-		echo '<td><a href="' . cng_admin_url() . '&amp;action=convert&post=' . $post->ID . '" class="button">Convert</a></td>';
+		echo '<td>' . $gallery->gid . '</td>';
+		echo '<td>' . $gallery->title . '</td>';
+		echo '<td><a href="' . admin_url('admin.php?page=nggallery-manage-gallery&mode=edit&gid=' . $gallery->gid) . '">Edit gallery</a></td>';
+		echo '<td><a href="' . cng_admin_url() . '&amp;action=convert&gallery=' . $gallery->gid . '" class="button">Convert</a></td>';
 		echo '<tr>';
 	}
 	echo '</table>';
@@ -158,20 +160,19 @@ add_action('admin_menu', function() {
 		<div class="wrap">
 			<h2><?php _e( 'Convert NextGEN Galleries to WordPress', 'convert-nextgen-galleries' ); ?></h2>
 			<?php 
-				$post_id = isset($_GET['post']) ? $_GET['post'] : null;
+				$gallery_id = isset($_GET['gallery']) ? $_GET['gallery'] : null;
 				$max_num_to_convert = isset($_GET['max_num']) ? $_GET['max_num'] : -1;
 
-				$posts_to_convert_query = cng_get_posts_to_convert_query( $post_id, $max_num_to_convert );
-				$posts_to_convert = $posts_to_convert_query->posts;
+				$galleries_to_convert = cng_get_galleries_to_convert( $gallery_id, $max_num_to_convert );
 
 				if ( isset( $_GET['action'] ) ) {
 					if ( $_GET['action'] == 'list' ) {
-						cng_list_galleries($posts_to_convert);
+						cng_list_galleries($galleries_to_convert);
 					} elseif ( $_GET['action'] == 'convert' ) {
-						cng_convert_galleries($posts_to_convert);
+						cng_convert_galleries($galleries_to_convert);
 					}
 				} else {
-					echo '<h3>' . count($posts_to_convert) . ' posts with galleries to convert</h3>';
+					echo '<h3>' . count($galleries_to_convert) . ' galleries to convert</h3>';
 				}
 			?>
 			<p><a class="" href="<?php echo cng_admin_url() . '&amp;action=list' ?>">List galleries to convert</a></p>

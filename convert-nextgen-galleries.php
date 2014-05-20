@@ -29,9 +29,9 @@ function cng_admin_url() {
 	return admin_url('options-general.php?page=convert-nextgen-galleries.php');
 }
 
-function cng_get_posts_to_convert_query($post_id = null, $max_number_of_posts = -1) {
+function cng_get_posts_to_convert_query($shortcode = 'nggallery', $post_id = null, $max_number_of_posts = -1) {
 	$args = array(
-		's'           => '[nggallery',
+		's'           => '[' . $shortcode,
 		'post_type'   => array( 'post', 'page' ),
 		'post_status' => 'any',
 		'p' => $post_id,
@@ -48,9 +48,9 @@ function cng_get_galleries_to_convert($gallery_id = null, $max_number_of_galleri
   	return $wpdb->get_results( $wpdb->prepare( "SELECT * FROM {$wpdb->prefix}ngg_gallery" ) );
 }
 
-function cng_find_gallery_shortcodes($post) {
+function cng_find_shortcodes($post, $shortcode='nggallery') {
 	$matches = null;
-	preg_match_all( '/\[nggallery.*?\]/si', $post->post_content, $matches );
+	preg_match_all( '/\[' . $shortcode . '.*?\]/si', $post->post_content, $matches );
 	return $matches[0];
 }
 
@@ -83,6 +83,9 @@ function cng_convert_galleries($galleries) {
 	global $wpdb;
 
 	echo '<h3>Converting ' . count($galleries) . ' galleries:</h3>';
+
+  $nggallery_query = cng_get_posts_to_convert_query('nggallery');
+  $nggallery_posts = $nggallery_query->posts;
 
 	foreach ( $galleries as $gallery ) {
 
@@ -121,7 +124,31 @@ function cng_convert_galleries($galleries) {
 		  array_push( $attachment_ids, $id );
 		  $attachment = get_post( $id );
 		  update_post_meta( $attachment->ID, '_wp_attachment_image_alt', $image->alttext );
+
 	  }
+
+	  if ( count( $attachment_ids ) == count( $images ) ) {
+      foreach ( $nggallery_posts as $post ) {
+	      foreach ( cng_find_shortcodes($post) as $shortcode ) {
+
+		      $gid = cng_get_gallery_id_from_shortcode($shortcode);
+          //echo "gid: " . $gid . "; " . "gallery->gid: " . $gallery->gid . "<br />"; 
+          if ($gid == $gallery->gid) {
+      	    echo '<h4>' . $post->post_title . '</h4>';
+
+    				$new_shortcode = '[gallery columns="3" link="file" ids="'. implode( ',', $attachment_ids ) . '"]';
+    				$post->post_content = str_replace( $shortcode, $new_shortcode, $post->post_content );
+    				wp_update_post( $post );
+    				echo "Replaced <code>$shortcode</code> with <code>$new_shortcode</code>.<br>";
+
+          }
+        }
+      }
+		} else {
+			echo "<p>Not replacing <code>$shortcode</code>. " . count( $attachment_ids ) . " of " . count( $images ) . " images converted.</p>";
+		}
+
+
   }
 }
 

@@ -79,65 +79,50 @@ function cng_list_galleries($galleries) {
 	echo '</table>';
 }
 
-function cng_convert_galleries($posts) {
-	set_time_limit( 1000 );
-	
+function cng_convert_galleries($galleries) {
 	global $wpdb;
-	echo '<h3>Converting galleries in ' . count($posts) . ' posts:</h3>';
 
-	foreach ( $posts as $post ) {
-		echo '<h4>' . $post->post_title . '</h4>';
-		foreach ( cng_find_gallery_shortcodes($post) as $shortcode ) {
+	echo '<h3>Converting ' . count($galleries) . ' galleries:</h3>';
 
-			$gallery_id = cng_get_gallery_id_from_shortcode($shortcode);
-			$gallery_directory = $wpdb->get_var( $wpdb->prepare( "SELECT path FROM {$wpdb->prefix}ngg_gallery WHERE gid = %d", $gallery_id ) );
-			$images = $wpdb->get_results( $wpdb->prepare( "SELECT * FROM {$wpdb->prefix}ngg_pictures WHERE galleryid = %d ORDER BY sortorder, pid ASC", $gallery_id ) );
+	foreach ( $galleries as $gallery ) {
 
-			$attachment_ids = array();
+	  $images = $wpdb->get_results( $wpdb->prepare( "SELECT * FROM {$wpdb->prefix}ngg_pictures WHERE galleryid = %d ORDER BY sortorder, pid ASC", $gallery->gid ) );
 
-			foreach ( $images as $image ) {
-				$existing_image_path =  ABSPATH . trailingslashit( $gallery_directory ) . $image->filename;
-				if ( ! file_exists ($existing_image_path) ) {
-					echo "ERROR: File '$existing_image_path' not found.<br>";
-					continue;
-				}
+	  $attachment_ids = array();
 
-				$tmp_image_path = get_temp_dir() . $image->filename;
-				copy($existing_image_path, $tmp_image_path);
+	  foreach ( $images as $image ) {
+		  $existing_image_path =  ABSPATH . trailingslashit( $gallery->path ) . $image->filename;
+		  if ( ! file_exists ($existing_image_path) ) {
+			  echo "ERROR: File '$existing_image_path' not found.<br>";
+			  continue;
+		  }
 
-				$file_array['name'] = $image->filename;
-				$file_array['tmp_name'] = $tmp_image_path;
+		  $tmp_image_path = get_temp_dir() . $image->filename;
+		  copy($existing_image_path, $tmp_image_path);
 
-				if ( ! trim( $image->alttext ) )
-					$image->alttext = $image->filename;
+		  $file_array['name'] = $image->filename;
+		  $file_array['tmp_name'] = $tmp_image_path;
 
-				$post_data = array(
-					'post_title' => $image->alttext,
-					// 'post_content' => $image->alttext,
-					'post_excerpt' => $image->description,
-					'menu_order' => $image->sortorder
-				);
-				$id = media_handle_sideload( $file_array, $post->ID, null, $post_data );
-				if ( is_wp_error($id) ) {
-					echo "ERROR: media_handle_sideload() filed for '$existing_image_path'.<br>";
-					continue;
-				}
+		  if ( ! trim( $image->alttext ) )
+			  $image->alttext = $image->filename;
 
-				array_push( $attachment_ids, $id );
-				$attachment = get_post( $id );
-				update_post_meta( $attachment->ID, '_wp_attachment_image_alt', $image->alttext );
-			}
+		  $post_data = array(
+			  'post_title' => $image->alttext,
+			  'post_content' => $image->description,
+			  /*'post_excerpt' => $image->description,*/
+			  'menu_order' => $image->sortorder
+		  );
+		  $id = media_handle_sideload( $file_array, $post->ID, null, $post_data );
+		  if ( is_wp_error($id) ) {
+			  echo "ERROR: media_handle_sideload() filed for '$existing_image_path'.<br>";
+			  continue;
+		  }
 
-			if ( count( $attachment_ids ) == count( $images ) ) {
-				$new_shortcode = '[gallery columns="4" link="file" ids="'. implode( ',', $attachment_ids ) . '"]';
-				$post->post_content = str_replace( $shortcode, $new_shortcode, $post->post_content );
-				wp_update_post( $post );
-				echo "Replaced <code>$shortcode</code> with <code>$new_shortcode</code>.<br>";
-			} else {
-				echo "<p>Not replacing <code>$shortcode</code>. " . count( $attachment_ids ) . " of " . count( $images ) . " images converted.</p>";
-			}
-		}
-	}
+		  array_push( $attachment_ids, $id );
+		  $attachment = get_post( $id );
+		  update_post_meta( $attachment->ID, '_wp_attachment_image_alt', $image->alttext );
+	  }
+  }
 }
 
 add_filter( 'plugin_action_links', function($links, $file) {

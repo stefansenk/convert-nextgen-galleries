@@ -59,6 +59,10 @@ function cng_get_gallery_id_from_shortcode($shortcode) {
 	return intval( $atts['id'] );
 }
 
+function cng_get_singlepic_atts_from_shortcode($shortcode) {
+	return shortcode_parse_atts($shortcode);
+}
+
 function cng_list_galleries($galleries) {
 	echo '<h3>Listing ' . count($galleries) . ' galleries to convert:</h3>';
 
@@ -79,13 +83,19 @@ function cng_list_galleries($galleries) {
 	echo '</table>';
 }
 
+function cng_post_header($post) {
+  $show_post_link = '<a href="' . get_permalink( $post->ID ) . '">Show</a>';
+  $edit_post_link = '<a href="' . admin_url('post.php?action=edit&amp;post=' . $post->ID) . '">Edit</a>';
+  return '<h4>In post ' . $post->post_title . ' ' . $show_post_link . ' ' .  $edit_post_link . ':</h4>';
+}
+
 function cng_convert_galleries($galleries) {
 	global $wpdb;
 
 	echo '<h3>Converting ' . count($galleries) . ' galleries:</h3>';
 
-  $nggallery_query = cng_get_posts_to_convert_query('nggallery');
-  $nggallery_posts = $nggallery_query->posts;
+  $nggallery_posts = cng_get_posts_to_convert_query('nggallery')->posts;
+  $singlepic_posts = cng_get_posts_to_convert_query('singlepic')->posts;
 
 	foreach ( $galleries as $gallery ) {
 
@@ -111,11 +121,11 @@ function cng_convert_galleries($galleries) {
 
 		  $post_data = array(
 			  'post_title' => $image->alttext,
-			  'post_content' => $image->description,
-			  /*'post_excerpt' => $image->description,*/
+			  /*'post_content' => $image->description,*/
+			  'post_excerpt' => $image->description,
 			  'menu_order' => $image->sortorder
 		  );
-		  $id = media_handle_sideload( $file_array, $post->ID, null, $post_data );
+		  $id = media_handle_sideload( $file_array, null, $image->description, $post_data );
 		  if ( is_wp_error($id) ) {
 			  echo "ERROR: media_handle_sideload() filed for '$existing_image_path'.<br>";
 			  continue;
@@ -125,30 +135,63 @@ function cng_convert_galleries($galleries) {
 		  $attachment = get_post( $id );
 		  update_post_meta( $attachment->ID, '_wp_attachment_image_alt', $image->alttext );
 
-	  }
+      foreach ( $singlepic_posts as $post ) {
+        $header_already_shown = false;
+	      foreach ( cng_find_shortcodes($post, 'singlepic') as $shortcode ) {
 
-	  if ( count( $attachment_ids ) == count( $images ) ) {
-      foreach ( $nggallery_posts as $post ) {
-	      foreach ( cng_find_shortcodes($post) as $shortcode ) {
+		      $atts = cng_get_singlepic_atts_from_shortcode($shortcode);
+          $pid = intval( $atts['id'] );
 
-		      $gid = cng_get_gallery_id_from_shortcode($shortcode);
-          //echo "gid: " . $gid . "; " . "gallery->gid: " . $gallery->gid . "<br />"; 
-          if ($gid == $gallery->gid) {
-      	    echo '<h4>' . $post->post_title . '</h4>';
+          if ($pid == $image->pid) {
 
-    				$new_shortcode = '[gallery columns="3" link="file" ids="'. implode( ',', $attachment_ids ) . '"]';
-    				$post->post_content = str_replace( $shortcode, $new_shortcode, $post->post_content );
+            if (strpos($atts['float'],'left') !== false)
+              $align = 'alignleft ';
+            elseif (strpos($atts['float'],'right') !== false)
+              $align = 'alignright ';
+            else
+              $align = 'alignnone ';
+
+            $new_code = wp_get_attachment_link($attachment->ID);
+            $new_code = str_replace('class="', 'title="' . $image->description . '"class="' . $align , $new_code);
+            $new_code = str_replace('<a ', '<a class="singlepic ' . $align . '" ' , $new_code);
+
+    				$post->post_content = str_replace( $shortcode, $new_code, $post->post_content );
     				wp_update_post( $post );
-    				echo "Replaced <code>$shortcode</code> with <code>$new_shortcode</code>.<br>";
 
+            if (!$header_already_shown) {
+              wp_update_post( array(
+                      'ID' => $attachment->ID,
+                      'post_parent' => $post->ID
+              ) );
+              echo cng_post_header($post);
+              $header_already_shown = true;
+            }
+    				echo "Replaced <code>$shortcode</code> with <code>" . esc_html($new_code) . "</code>.<br>";
           }
         }
       }
-		} else {
-			echo "<p>Not replacing <code>$shortcode</code>. " . count( $attachment_ids ) . " of " . count( $images ) . " images converted.</p>";
-		}
 
+      /* If the "exclude" property is set, we're not supposed to display the image as part of the gallery. */
+      if ($image->exclude != 0)
+        array_pop( $attachment_ids );
+	  }
 
+    foreach ( $nggallery_posts as $post ) {
+      $header_already_shown = false;
+      foreach ( cng_find_shortcodes($post, 'nggallery') as $shortcode ) {
+	      $gid = cng_get_gallery_id_from_shortcode($shortcode);
+        if ($gid == $gallery->gid) {
+					$new_shortcode = '[gallery columns="3" link="file" ids="'. implode( ',', $attachment_ids ) . '"]';
+					$post->post_content = str_replace( $shortcode, $new_shortcode, $post->post_content );
+					wp_update_post( $post );
+          if (!$header_already_shown) {
+            echo cng_post_header($post);
+            $header_already_shown = true;
+          }
+					echo "Replaced <code>$shortcode</code> with <code>$new_shortcode</code>.<br>";
+        }
+      }
+    }
   }
 }
 

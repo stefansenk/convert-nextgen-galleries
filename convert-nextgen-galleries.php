@@ -86,7 +86,7 @@ function cng_list_galleries($galleries) {
 function cng_post_header($post) {
   $show_post_link = '<a href="' . get_permalink( $post->ID ) . '">Show</a>';
   $edit_post_link = '<a href="' . admin_url('post.php?action=edit&amp;post=' . $post->ID) . '">Edit</a>';
-  return '<h4>In ' . $post->post_type . ' ' . $post->post_title . ' ' . $show_post_link . ' ' .  $edit_post_link . ':</h4>';
+  return '<h5>In ' . $post->post_type . ' ' . $post->post_title . ' ' . $show_post_link . ' ' .  $edit_post_link . ':</h5>';
 }
 
 function cng_convert_galleries($galleries) {
@@ -98,7 +98,7 @@ function cng_convert_galleries($galleries) {
   $singlepic_posts = cng_get_posts_to_convert_query('singlepic')->posts;
 
 	foreach ( $galleries as $gallery ) {
-
+	  echo '<h4>Converting gallery ' . $gallery->title . '</h4>';
 	  $images = $wpdb->get_results( $wpdb->prepare( "SELECT * FROM {$wpdb->prefix}ngg_pictures WHERE galleryid = %d ORDER BY sortorder, pid ASC", $gallery->gid ) );
 
 	  $attachment_ids = array();

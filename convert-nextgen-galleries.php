@@ -203,7 +203,7 @@ add_filter( 'plugin_action_links', function($links, $file) {
 }, 10, 2 );
 
 add_action('admin_menu', function() {
-	add_options_page( 
+	add_management_page(
 		__( 'Convert NextGEN Galleries', 'convert-nextgen-galleries' ),
 		__( 'Convert NextGEN Galleries', 'convert-nextgen-galleries' ),
 		'manage_options', 'convert-nextgen-galleries.php', function() {

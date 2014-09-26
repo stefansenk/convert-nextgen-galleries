@@ -86,7 +86,7 @@ function cng_list_galleries($galleries) {
 function cng_post_header($post) {
   $show_post_link = '<a href="' . get_permalink( $post->ID ) . '">Show</a>';
   $edit_post_link = '<a href="' . admin_url('post.php?action=edit&amp;post=' . $post->ID) . '">Edit</a>';
-  return '<h4>In post ' . $post->post_title . ' ' . $show_post_link . ' ' .  $edit_post_link . ':</h4>';
+  return '<h4>In ' . $post->post_type . ' ' . $post->post_title . ' ' . $show_post_link . ' ' .  $edit_post_link . ':</h4>';
 }
 
 function cng_convert_galleries($galleries) {

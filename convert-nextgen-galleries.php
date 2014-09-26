@@ -29,10 +29,10 @@ function cng_admin_url() {
 	return admin_url('options-general.php?page=convert-nextgen-galleries.php');
 }
 
-function cng_get_posts_to_convert_query($post_id = null, $max_number_of_posts = -1) {
+function cng_get_posts_to_convert_query($shortcode = 'nggallery', $post_id = null, $max_number_of_posts = -1) {
 	$args = array(
-		's'           => '[nggallery',
-		'post_type'   => array( 'post', 'page' ),
+		's'           => '[' . $shortcode,
+		'post_type'   => 'any',
 		'post_status' => 'any',
 		'p' => $post_id,
 		'posts_per_page' => $max_number_of_posts
@@ -40,9 +40,17 @@ function cng_get_posts_to_convert_query($post_id = null, $max_number_of_posts = 
 	return new WP_Query( $args );
 }
 
-function cng_find_gallery_shortcodes($post) {
+function cng_get_galleries_to_convert($gallery_id = null, $max_number_of_galleries = -1) {
+	global $wpdb;
+  if ($gallery_id)
+  	return $wpdb->get_results( $wpdb->prepare( "SELECT * FROM {$wpdb->prefix}ngg_gallery WHERE gid = %d", $gallery_id ) );
+  else
+  	return $wpdb->get_results( $wpdb->prepare( "SELECT * FROM {$wpdb->prefix}ngg_gallery" ) );
+}
+
+function cng_find_shortcodes($post, $shortcode='nggallery') {
 	$matches = null;
-	preg_match_all( '/\[nggallery.*?\]/si', $post->post_content, $matches );
+	preg_match_all( '/\[' . $shortcode . '.*?\]/si', $post->post_content, $matches );
 	return $matches[0];
 }
 
@@ -51,91 +59,140 @@ function cng_get_gallery_id_from_shortcode($shortcode) {
 	return intval( $atts['id'] );
 }
 
-function cng_list_galleries($posts_query) {
-	echo '<h3>Listing ' . $posts_query->found_posts . ' posts with galleries to convert:</h3>';
+function cng_get_singlepic_atts_from_shortcode($shortcode) {
+	return shortcode_parse_atts($shortcode);
+}
+
+function cng_list_galleries($galleries) {
+	echo '<h3>Listing ' . count($galleries) . ' galleries to convert:</h3>';
 
 	echo '<table>';
 	echo '<tr>';
-	echo '<th>Post ID</th>';
-	echo '<th>Post Title</th>';
-	echo '<th>Galleries</th>';
+	echo '<th>Gallery ID</th>';
+	echo '<th>Gallery Title</th>';
 	echo '<th colspan="2">Actions</th>';
 	echo '<tr>';
-	foreach ( $posts_query->posts as $post ) {
+	foreach ( $galleries as $gallery ) {
 		echo '<tr>';
-		echo '<td>' . $post->ID . '</td>';
-		echo '<td>' . $post->post_title . '</td>';
-		echo '<td>';
-		foreach ( cng_find_gallery_shortcodes($post) as $shortcode ) {
-			echo $shortcode . '<br>';
-		}
-		echo '</td>';
-		echo '<td><a href="' . admin_url('post.php?action=edit&amp;post=' . $post->ID) . '">Edit Post</a></td>';
-		echo '<td><a href="' . cng_admin_url() . '&amp;action=convert&post=' . $post->ID . '" class="button">Convert</a></td>';
+		echo '<td>' . $gallery->gid . '</td>';
+		echo '<td>' . $gallery->title . '</td>';
+		echo '<td><a href="' . admin_url('admin.php?page=nggallery-manage-gallery&mode=edit&gid=' . $gallery->gid) . '">Edit gallery</a></td>';
+		echo '<td><a href="' . cng_admin_url() . '&amp;action=convert&gallery=' . $gallery->gid . '" class="button">Convert</a></td>';
 		echo '<tr>';
 	}
 	echo '</table>';
 }
 
-function cng_convert_galleries($posts_query) {
-	set_time_limit( 1000 );
-	
+function cng_post_header($post) {
+  $show_post_link = '<a href="' . get_permalink( $post->ID ) . '">Show</a>';
+  $edit_post_link = '<a href="' . admin_url('post.php?action=edit&amp;post=' . $post->ID) . '">Edit</a>';
+  return '<h5>In ' . $post->post_type . ' ' . $post->post_title . ' ' . $show_post_link . ' ' .  $edit_post_link . ':</h5>';
+}
+
+function cng_convert_galleries($galleries) {
 	global $wpdb;
-	echo '<h3>Converting galleries in ' . $posts_query->found_posts . ' posts:</h3>';
 
-	foreach ( $posts_query->posts as $post ) {
-		echo '<h4>' . $post->post_title . '</h4>';
-		foreach ( cng_find_gallery_shortcodes($post) as $shortcode ) {
+	echo '<h3>Converting ' . count($galleries) . ' galleries:</h3>';
 
-			$gallery_id = cng_get_gallery_id_from_shortcode($shortcode);
-			$gallery_directory = $wpdb->get_var( $wpdb->prepare( "SELECT path FROM {$wpdb->prefix}ngg_gallery WHERE gid = %d", $gallery_id ) );
-			$images = $wpdb->get_results( $wpdb->prepare( "SELECT * FROM {$wpdb->prefix}ngg_pictures WHERE galleryid = %d ORDER BY sortorder, pid ASC", $gallery_id ) );
+  $nggallery_posts = cng_get_posts_to_convert_query('nggallery')->posts;
+  $singlepic_posts = cng_get_posts_to_convert_query('singlepic')->posts;
 
-			$attachment_ids = array();
+	foreach ( $galleries as $gallery ) {
+	  echo '<h4>Converting gallery ' . $gallery->title . '</h4>';
+	  $images = $wpdb->get_results( $wpdb->prepare( "SELECT * FROM {$wpdb->prefix}ngg_pictures WHERE galleryid = %d ORDER BY sortorder, pid ASC", $gallery->gid ) );
 
-			foreach ( $images as $image ) {
-				$existing_image_path =  ABSPATH . trailingslashit( $gallery_directory ) . $image->filename;
-				if ( ! file_exists ($existing_image_path) ) {
-					echo "ERROR: File '$existing_image_path' not found.<br>";
-					continue;
-				}
+	  $attachment_ids = array();
 
-				$tmp_image_path = get_temp_dir() . $image->filename;
-				copy($existing_image_path, $tmp_image_path);
+	  foreach ( $images as $image ) {
+		  $existing_image_path =  ABSPATH . trailingslashit( $gallery->path ) . $image->filename;
+		  if ( ! file_exists ($existing_image_path) ) {
+			  echo "ERROR: File '$existing_image_path' not found.<br>";
+			  continue;
+		  }
 
-				$file_array['name'] = $image->filename;
-				$file_array['tmp_name'] = $tmp_image_path;
+		  $tmp_image_path = get_temp_dir() . $image->filename;
+		  copy($existing_image_path, $tmp_image_path);
 
-				if ( ! trim( $image->alttext ) )
-					$image->alttext = $image->filename;
+		  $file_array['name'] = $image->filename;
+		  $file_array['tmp_name'] = $tmp_image_path;
 
-				$post_data = array(
-					'post_title' => $image->alttext,
-					// 'post_content' => $image->alttext,
-					'post_excerpt' => $image->description,
-					'menu_order' => $image->sortorder
-				);
-				$id = media_handle_sideload( $file_array, $post->ID, null, $post_data );
-				if ( is_wp_error($id) ) {
-					echo "ERROR: media_handle_sideload() filed for '$existing_image_path'.<br>";
-					continue;
-				}
+		  if ( ! trim( $image->alttext ) )
+			  $image->alttext = $image->filename;
 
-				array_push( $attachment_ids, $id );
-				$attachment = get_post( $id );
-				update_post_meta( $attachment->ID, '_wp_attachment_image_alt', $image->alttext );
-			}
+		  $post_data = array(
+			  'post_title' => $image->alttext,
+			  /*'post_content' => $image->description,*/
+			  'post_excerpt' => $image->description,
+			  'menu_order' => $image->sortorder
+		  );
+		  $id = media_handle_sideload( $file_array, null, $image->description, $post_data );
+		  if ( is_wp_error($id) ) {
+			  echo "ERROR: media_handle_sideload() filed for '$existing_image_path'.<br>";
+			  continue;
+		  }
 
-			if ( count( $attachment_ids ) == count( $images ) ) {
-				$new_shortcode = '[gallery columns="4" link="file" ids="'. implode( ',', $attachment_ids ) . '"]';
-				$post->post_content = str_replace( $shortcode, $new_shortcode, $post->post_content );
-				wp_update_post( $post );
-				echo "Replaced <code>$shortcode</code> with <code>$new_shortcode</code>.<br>";
-			} else {
-				echo "<p>Not replacing <code>$shortcode</code>. " . count( $attachment_ids ) . " of " . count( $images ) . " images converted.</p>";
-			}
-		}
-	}
+		  array_push( $attachment_ids, $id );
+		  $attachment = get_post( $id );
+		  update_post_meta( $attachment->ID, '_wp_attachment_image_alt', $image->alttext );
+
+      foreach ( $singlepic_posts as $post ) {
+        $header_already_shown = false;
+	      foreach ( cng_find_shortcodes($post, 'singlepic') as $shortcode ) {
+
+		      $atts = cng_get_singlepic_atts_from_shortcode($shortcode);
+          $pid = intval( $atts['id'] );
+
+          if ($pid == $image->pid) {
+
+            if (strpos($atts['float'],'left') !== false)
+              $align = 'alignleft ';
+            elseif (strpos($atts['float'],'right') !== false)
+              $align = 'alignright ';
+            else
+              $align = 'alignnone ';
+
+            $new_code = wp_get_attachment_link($attachment->ID);
+            $new_code = str_replace('class="', 'title="' . $image->description . '"class="' . $align , $new_code);
+            $new_code = str_replace('<a ', '<a class="singlepic ' . $align . '" ' , $new_code);
+
+    				$post->post_content = str_replace( $shortcode, $new_code, $post->post_content );
+    				wp_update_post( $post );
+
+            if (!$header_already_shown) {
+              wp_update_post( array(
+                      'ID' => $attachment->ID,
+                      'post_parent' => $post->ID
+              ) );
+              echo cng_post_header($post);
+              $header_already_shown = true;
+            }
+    				echo "Replaced <code>$shortcode</code> with <code>" . esc_html($new_code) . "</code>.<br>";
+          }
+        }
+      }
+
+      /* If the "exclude" property is set, we're not supposed to display the image as part of the gallery. */
+      if ($image->exclude != 0)
+        array_pop( $attachment_ids );
+	  }
+
+    foreach ( $nggallery_posts as $post ) {
+      $header_already_shown = false;
+      foreach ( cng_find_shortcodes($post, 'nggallery') as $shortcode ) {
+	      $gid = cng_get_gallery_id_from_shortcode($shortcode);
+        if ($gid == $gallery->gid) {
+					$new_shortcode = '[gallery columns="3" link="file" ids="'. implode( ',', $attachment_ids ) . '"]';
+					$post->post_content = str_replace( $shortcode, $new_shortcode, $post->post_content );
+					wp_update_post( $post );
+          if (!$header_already_shown) {
+            echo cng_post_header($post);
+            $header_already_shown = true;
+          }
+					echo "Replaced <code>$shortcode</code> with <code>$new_shortcode</code>.<br>";
+        }
+      }
+    }
+  }
 }
 
 add_filter( 'plugin_action_links', function($links, $file) {
@@ -146,7 +203,7 @@ add_filter( 'plugin_action_links', function($links, $file) {
 }, 10, 2 );
 
 add_action('admin_menu', function() {
-	add_options_page( 
+	add_management_page(
 		__( 'Convert NextGEN Galleries', 'convert-nextgen-galleries' ),
 		__( 'Convert NextGEN Galleries', 'convert-nextgen-galleries' ),
 		'manage_options', 'convert-nextgen-galleries.php', function() {
@@ -158,19 +215,19 @@ add_action('admin_menu', function() {
 		<div class="wrap">
 			<h2><?php _e( 'Convert NextGEN Galleries to WordPress', 'convert-nextgen-galleries' ); ?></h2>
 			<?php 
-				$post_id = isset($_GET['post']) ? $_GET['post'] : null;
+				$gallery_id = isset($_GET['gallery']) ? $_GET['gallery'] : null;
 				$max_num_to_convert = isset($_GET['max_num']) ? $_GET['max_num'] : -1;
 
-				$posts_to_convert_query = cng_get_posts_to_convert_query( $post_id, $max_num_to_convert );
+				$galleries_to_convert = cng_get_galleries_to_convert( $gallery_id, $max_num_to_convert );
 
 				if ( isset( $_GET['action'] ) ) {
 					if ( $_GET['action'] == 'list' ) {
-						cng_list_galleries($posts_to_convert_query);
+						cng_list_galleries($galleries_to_convert);
 					} elseif ( $_GET['action'] == 'convert' ) {
-						cng_convert_galleries($posts_to_convert_query);
+						cng_convert_galleries($galleries_to_convert);
 					}
 				} else {
-					echo '<h3>' . $posts_to_convert_query->found_posts . ' posts with galleries to convert</h3>';
+					echo '<h3>' . count($galleries_to_convert) . ' galleries to convert</h3>';
 				}
 			?>
 			<p><a class="" href="<?php echo cng_admin_url() . '&amp;action=list' ?>">List galleries to convert</a></p>

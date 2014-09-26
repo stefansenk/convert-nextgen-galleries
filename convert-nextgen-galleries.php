@@ -32,7 +32,7 @@ function cng_admin_url() {
 function cng_get_posts_to_convert_query($shortcode = 'nggallery', $post_id = null, $max_number_of_posts = -1) {
 	$args = array(
 		's'           => '[' . $shortcode,
-		'post_type'   => array( 'post', 'page' ),
+		'post_type'   => 'any',
 		'post_status' => 'any',
 		'p' => $post_id,
 		'posts_per_page' => $max_number_of_posts

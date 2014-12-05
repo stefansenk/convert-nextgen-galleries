@@ -137,7 +137,7 @@ function cng_convert_galleries($posts_query) {
 				update_post_meta( $attachment->ID, '_wp_attachment_image_alt', $image->alttext );
 			}
 
-			if ( true|| count( $attachment_ids ) == count( $images ) ) {
+			if ( count( $attachment_ids ) == count( $images ) ) {
 				$new_shortcode = '[gallery columns="4" link="file" ids="'. implode( ',', $attachment_ids ) . '"]';
 				// $post->post_content = str_replace( $shortcode, $new_shortcode, $post->post_content );
 				// wp_update_post( $post );

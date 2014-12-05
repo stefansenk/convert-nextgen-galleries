@@ -31,18 +31,29 @@ function cng_admin_url() {
 
 function cng_get_posts_to_convert_query($post_id = null, $max_number_of_posts = -1) {
 	$args = array(
-		's'           => '[nggallery',
+		// 's'           => '[nggallery',
 		'post_type'   => array( 'post', 'page' ),
 		'post_status' => 'any',
 		'p' => $post_id,
-		'posts_per_page' => $max_number_of_posts
+		'posts_per_page' => $max_number_of_posts,
+		'meta_query' => array(
+			array(
+				'value' => '[nggallery',
+				'compare' => 'LIKE'
+			),
+		),
 	);
 	return new WP_Query( $args );
 }
 
 function cng_find_gallery_shortcodes($post) {
 	$matches = null;
-	preg_match_all( '/\[nggallery.*?\]/si', $post->post_content, $matches );
+	// preg_match_all( '/\[nggallery.*?\]/si', $post->post_content, $matches );
+	foreach( array_values( get_post_custom( $post->ID ) ) as $values ) {
+		foreach( array_values( $values ) as $value ) {
+			preg_match_all( '/\[nggallery.*?\]/si', $value, $matches );
+		}
+	}
 	return $matches[0];
 }
 
@@ -126,10 +137,17 @@ function cng_convert_galleries($posts_query) {
 				update_post_meta( $attachment->ID, '_wp_attachment_image_alt', $image->alttext );
 			}
 
-			if ( count( $attachment_ids ) == count( $images ) ) {
+			if ( true|| count( $attachment_ids ) == count( $images ) ) {
 				$new_shortcode = '[gallery columns="4" link="file" ids="'. implode( ',', $attachment_ids ) . '"]';
-				$post->post_content = str_replace( $shortcode, $new_shortcode, $post->post_content );
-				wp_update_post( $post );
+				// $post->post_content = str_replace( $shortcode, $new_shortcode, $post->post_content );
+				// wp_update_post( $post );
+				foreach( get_post_custom( $post->ID ) as  $meta_key => $values ) {
+					foreach( $values as $key => $meta_value ) {
+						$prev_value = $meta_value;
+						$meta_value = str_replace( $shortcode, $new_shortcode, $meta_value );
+						update_post_meta( $post->ID, $meta_key, $meta_value, $prev_value );
+					}
+				}
 				echo "Replaced <code>$shortcode</code> with <code>$new_shortcode</code>.<br>";
 			} else {
 				echo "<p>Not replacing <code>$shortcode</code>. " . count( $attachment_ids ) . " of " . count( $images ) . " images converted.</p>";
